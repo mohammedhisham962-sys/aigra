@@ -1,0 +1,334 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom border-secondary">
+    <h1 class="h2">SOC Dashboard</h1>
+</div>
+
+<div class="row">
+    <div class="col-md-4 mb-4">
+        <div class="card p-3 shadow-sm text-center">
+            <h5 class="card-title text-muted">Active Threats</h5>
+            <h2 class="text-danger" id="active-threats">0</h2>
+        </div>
+    </div>
+    <div class="col-md-4 mb-4">
+        <div class="card p-3 shadow-sm text-center">
+            <h5 class="card-title text-muted">System Health</h5>
+            <h2 class="text-success" id="system-health">100%</h2>
+        </div>
+    </div>
+    <div class="col-md-4 mb-4">
+        <div class="card p-3 shadow-sm text-center">
+            <h5 class="card-title text-muted">Logs Processed</h5>
+            <h2 class="text-cyber" id="logs-processed">0</h2>
+        </div>
+    </div>
+</div>
+
+<div class="row mb-4">
+    <div class="col-md-4">
+        <div class="card p-4 h-100 text-center">
+            <h4>Personal Cyber Risk Score</h4>
+            <div class="display-1 fw-bold text-cyber mt-3" id="risk-score">100</div>
+            <p class="text-muted mt-2">Overall device and account safety.</p>
+        </div>
+    </div>
+    
+    <div class="col-md-4">
+        <div class="card p-4 h-100">
+            <h4>Security Health Hub</h4>
+            <ul class="list-group list-group-flush mt-3">
+                <li class="list-group-item bg-transparent text-light border-secondary">
+                    <i class="fa-solid fa-wifi me-2"></i> WiFi Status: <span id="wifi-status" class="badge bg-secondary">Checking...</span>
+                </li>
+                <li class="list-group-item bg-transparent text-light border-secondary mt-2">
+                    <i class="fa-solid fa-envelope me-2"></i> Data Breaches
+                    <div class="input-group input-group-sm mt-2">
+                        <input type="email" id="breach-email" class="form-control bg-dark text-light border-secondary" placeholder="Enter email">
+                        <button class="btn btn-outline-cyber" onclick="checkBreach()">Check</button>
+                    </div>
+                    <div id="breach-result" class="mt-1 small"></div>
+                </li>
+                <li class="list-group-item bg-transparent text-light border-secondary mt-2">
+                    <i class="fa-solid fa-key me-2"></i> Password Tester
+                    <div class="input-group input-group-sm mt-2">
+                        <input type="password" id="pass-test" class="form-control bg-dark text-light border-secondary" placeholder="Test a password">
+                        <button class="btn btn-outline-cyber" onclick="checkPassword()">Test</button>
+                    </div>
+                    <div id="pass-result" class="mt-1 small"></div>
+                </li>
+            </ul>
+        </div>
+    </div>
+    
+    <div class="col-md-4">
+        <div class="card p-4 h-100">
+            <h4><i class="fa-solid fa-robot me-2"></i> AI Scam Scanner</h4>
+            <p class="small text-muted mb-2">Paste suspicious SMS, Job Offers, or UPI links here.</p>
+            <textarea id="ai-input" class="form-control bg-dark text-light border-secondary" rows="3" placeholder="Paste text here..."></textarea>
+            <button class="btn btn-cyber mt-3 w-100" onclick="scanText()">Scan with AI</button>
+            <div id="ai-result" class="mt-3 p-2 border border-secondary rounded" style="display:none;"></div>
+        </div>
+    </div>
+</div>
+
+<div class="row">
+    <div class="col-md-7">
+        <div class="card p-4 h-100">
+            <h4>Live Alert Feed (Threats)</h4>
+            <table class="table table-dark table-hover mt-3">
+                <thead>
+                    <tr>
+                        <th>Time</th>
+                        <th>Severity</th>
+                        <th>Alert Rule</th>
+                        <th>AI Score</th>
+                    </tr>
+                </thead>
+                <tbody id="alert-table-body">
+                    <tr>
+                        <td colspan="4" class="text-center text-muted">No alerts detected... yet.</td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+    
+    <div class="col-md-5">
+        <div class="card p-4 h-100">
+            <h4>Live Activity (Apps Opened)</h4>
+            <table class="table table-dark table-hover mt-3">
+                <thead>
+                    <tr>
+                        <th>Time</th>
+                        <th>Process</th>
+                    </tr>
+                </thead>
+                <tbody id="activity-table-body">
+                    <tr>
+                        <td colspan="2" class="text-center text-muted">Waiting for activity...</td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+<div class="row mt-4">
+    <div class="col-12">
+        <div class="card p-4">
+            <h4><i class="fa-solid fa-microchip me-2"></i> Live System Processes (Task Manager)</h4>
+            <table class="table table-dark table-hover table-sm mt-3">
+                <thead>
+                    <tr>
+                        <th>PID</th>
+                        <th>Process Name</th>
+                        <th>Memory Usage (MB)</th>
+                    </tr>
+                </thead>
+                <tbody id="processes-table-body">
+                    <tr>
+                        <td colspan="3" class="text-center text-muted">Loading live processes...</td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<!-- Socket.IO Library -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.0.1/socket.io.js"></script>
+<script>
+    const socket = io();
+    
+    let activeThreats = 0;
+    let logsProcessed = 0;
+
+    // Listen for new logs (Activity)
+    socket.on('new_log', function(log) {
+        logsProcessed++;
+        document.getElementById('logs-processed').innerText = logsProcessed;
+        
+        // Add to Activity table
+        const tbody = document.getElementById('activity-table-body');
+        
+        if (logsProcessed === 1) {
+            tbody.innerHTML = ''; // Clear default message
+        }
+        
+        const date = new Date(log.timestamp);
+        const timeString = date.toLocaleTimeString();
+        
+        // Highlight in blue if it's a process monitor log
+        let badgeColor = 'bg-secondary';
+        if (log.log_source === 'ProcessMonitor') {
+            badgeColor = 'bg-primary';
+        }
+        
+        const row = document.createElement('tr');
+        row.innerHTML = `
+            <td>${timeString}</td>
+            <td><span class="badge ${badgeColor}">${log.process_name || 'System'}</span> <small class="text-muted">${log.message}</small></td>
+        `;
+        
+        tbody.insertBefore(row, tbody.firstChild);
+        if (tbody.children.length > 8) tbody.removeChild(tbody.lastChild);
+    });
+
+    // Listen for new alerts
+    socket.on('new_alert', function(alert) {
+        activeThreats++;
+        document.getElementById('active-threats').innerText = activeThreats;
+
+        // Add to table
+        const tbody = document.getElementById('alert-table-body');
+        
+        // Remove the "No alerts" message if it's the first one
+        if (activeThreats === 1) {
+            tbody.innerHTML = '';
+        }
+
+        // Determine color based on severity
+        let badgeColor = 'bg-warning';
+        if (alert.severity === 'High' || alert.severity === 'Critical') {
+            badgeColor = 'bg-danger';
+        }
+
+        // Format time
+        const date = new Date(alert.time);
+        const timeString = date.toLocaleTimeString();
+
+        // Create new row
+        const row = document.createElement('tr');
+        row.innerHTML = `
+            <td>${timeString}</td>
+            <td><span class="badge ${badgeColor}">${alert.severity}</span></td>
+            <td>${alert.rule}</td>
+            <td class="text-cyber fw-bold">${alert.score}</td>
+        `;
+        
+        // Insert at the top of the table
+        tbody.insertBefore(row, tbody.firstChild);
+        
+        // Keep only top 8 recent alerts
+        if (tbody.children.length > 8) {
+            tbody.removeChild(tbody.lastChild);
+        }
+    });
+
+    // Listen for live running processes
+    socket.on('live_processes', function(processes) {
+        const tbody = document.getElementById('processes-table-body');
+        tbody.innerHTML = '';
+        
+        processes.forEach(proc => {
+            const row = document.createElement('tr');
+            
+            // Add a red warning if a process uses a massive amount of memory
+            let memoryClass = 'text-light';
+            if (proc.memory > 500) {
+                memoryClass = 'text-warning fw-bold';
+            }
+            if (proc.memory > 1000) {
+                memoryClass = 'text-danger fw-bold';
+            }
+
+            row.innerHTML = `
+                <td class="text-muted">${proc.pid}</td>
+                <td>${proc.name}</td>
+                <td class="${memoryClass}">${proc.memory} MB</td>
+            `;
+            tbody.appendChild(row);
+        });
+    });
+    
+    // API Calls for Phase 2 Features
+    function checkBreach() {
+        const email = document.getElementById('breach-email').value;
+        const resDiv = document.getElementById('breach-result');
+        if(!email) return;
+        resDiv.innerHTML = '<span class="text-muted">Checking...</span>';
+        
+        fetch('/api/check-breach', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({email: email})
+        })
+        .then(r => r.json())
+        .then(data => {
+            if(data.breached) {
+                resDiv.innerHTML = `<span class="text-danger"><i class="fa-solid fa-triangle-exclamation"></i> ${data.message}</span>`;
+                updateRiskScore(-20);
+            } else {
+                resDiv.innerHTML = `<span class="text-success"><i class="fa-solid fa-check-circle"></i> ${data.message}</span>`;
+            }
+        });
+    }
+    
+    function checkPassword() {
+        const pass = document.getElementById('pass-test').value;
+        const resDiv = document.getElementById('pass-result');
+        if(!pass) return;
+        
+        fetch('/api/check-password', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({password: pass})
+        })
+        .then(r => r.json())
+        .then(data => {
+            const colors = ['text-danger', 'text-warning', 'text-warning', 'text-info', 'text-success'];
+            const labels = ['Very Weak', 'Weak', 'Fair', 'Strong', 'Very Strong'];
+            resDiv.innerHTML = `<span class="${colors[data.score]}">Strength: ${labels[data.score]} (Cracked in ${data.crack_time})</span><br><small class="text-muted">${data.warning || ''}</small>`;
+        });
+    }
+    
+    function scanText() {
+        const text = document.getElementById('ai-input').value;
+        const resDiv = document.getElementById('ai-result');
+        if(!text) return;
+        
+        resDiv.style.display = 'block';
+        resDiv.innerHTML = '<span class="text-muted">AI is analyzing...</span>';
+        
+        fetch('/api/analyze-text', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({text: text})
+        })
+        .then(r => r.json())
+        .then(data => {
+            if(data.is_scam) {
+                resDiv.className = "mt-3 p-2 border border-danger bg-danger bg-opacity-25 rounded";
+                resDiv.innerHTML = `<strong><i class="fa-solid fa-skull"></i> Scam Detected!</strong><br><small>${data.summary}</small>`;
+            } else {
+                resDiv.className = "mt-3 p-2 border border-success bg-success bg-opacity-25 rounded";
+                resDiv.innerHTML = `<strong><i class="fa-solid fa-shield-check"></i> Looks Safe</strong><br><small>${data.summary}</small>`;
+            }
+        });
+    }
+    
+    // Initial fetch for device status
+    fetch('/api/device-status')
+        .then(r => r.json())
+        .then(data => {
+            const wifiSpan = document.getElementById('wifi-status');
+            if(data.wifi.is_secure) {
+                wifiSpan.className = "badge bg-success";
+                wifiSpan.innerText = "Secure";
+            } else {
+                wifiSpan.className = "badge bg-danger";
+                wifiSpan.innerText = "Insecure";
+            }
+            updateRiskScore(data.overall_score - 100); // apply diff
+        });
+        
+    function updateRiskScore(change) {
+        const el = document.getElementById('risk-score');
+        let current = parseInt(el.innerText);
+        current = Math.max(0, Math.min(100, current + change));
+        el.innerText = current;
+        if(current < 50) el.className = "display-1 fw-bold text-danger mt-3";
+        else if(current < 80) el.className = "display-1 fw-bold text-warning mt-3";
+    }
+</script>
+{% endblock %}
